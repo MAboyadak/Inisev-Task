@@ -4,18 +4,22 @@ namespace App\Http\Controllers;
 
 use App\Events\PostCreatedEvent;
 use App\Http\Requests\NewPostRequest;
+use App\Interfaces\PostRepositoryInterface;
 use App\Models\Post;
 use Illuminate\Http\Request;
 
 class PostController extends Controller
 {
+    private PostRepositoryInterface $postRepository;
+
+    public function __construct(PostRepositoryInterface $postRepo)
+    {
+        $this->postRepository = $postRepo;
+    }
+
     public function store(NewPostRequest $request)
     {
-        $post = Post::create([
-            'title' => $request->title,
-            'description' => $request->description,
-            'website_id' => $request->website_id,
-        ]);
+        $post = $this->postRepository->store($request);
 
         if($post){
             event(new PostCreatedEvent($post));
