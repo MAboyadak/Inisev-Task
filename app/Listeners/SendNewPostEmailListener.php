@@ -27,7 +27,7 @@ class SendNewPostEmailListener
         $subscribers = $website->subscribers;
 
         foreach ($subscribers as $subscriber) {
-            SendPostEmailJob::dispatch($subscriber->id, $post, $website->id);
+            SendPostEmailJob::dispatch($website->id, $subscriber->id, $post);
         }
     }
 }

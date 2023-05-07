@@ -26,7 +26,7 @@ class SendPostEmailJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(private $user_id, private $post, private $website_id)
+    public function __construct(private $website_id, private $user_id, private $post)
     {
         //
     }
@@ -36,7 +36,12 @@ class SendPostEmailJob implements ShouldQueue
      */
     public function handle(): void
     {
-        $postSent = DB::table('sent_posts')->where('user_id',$this->user_id)->where('post_id',$this->post->id)->exists();
+        $postSent = DB::table('sent_posts')
+                    ->where('user_id', $this->user_id)
+                    ->where('post_id', $this->post->id)
+                    ->where('website_id', $this->website_id)
+                    ->exists();
+
         if(!$postSent){
             DB::table('sent_posts')->insert([
                 'user_id'    => $this->user_id,
@@ -45,8 +50,8 @@ class SendPostEmailJob implements ShouldQueue
             ]);
         }
 
-        $user = User::find($this->user_id);
-        Mail::to($user)->send(new PostEmail($this->post));
+        $userEmail = User::find($this->user_id)->email;
+        Mail::to($userEmail)->send(new PostEmail($this->post));
         
     }
 }

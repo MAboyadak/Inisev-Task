@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendPostEmailJob;
+use App\Models\Post;
 use App\Models\Website;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -28,28 +29,45 @@ class SendEmailsCommand extends Command
      */
     public function handle()
     {
-        $websites = Website::with('subscribers')->get();
+        $websites = Website::select('websites.id')->get();
+
         foreach($websites as $website){
-            foreach($website->subscribers as $subscriber){
-                $this->sendUnsentPosts($website->id,$subscriber->id);
-            }
+            
+            $website->load(['subscribers'=> function($query) use ($website){
+                $query->select('users.id')->chunk(50, function($subscribers) use($website) {
+                    foreach($subscribers as $subscriber){
+                        $this->sendUnsentPosts($website->id, $subscriber->id);
+                    }
+                });
+            }]);
         }
 
     }
 
     private function sendUnsentPosts($website_id, $user_id)
     {
-        $webistePosts = Website::where('id', $website_id)->with('posts')->first();
-        foreach ($webistePosts->posts as $post) {
-            if(! $this->checkSentBefore($user_id,$post->id)){
-                SendPostEmailJob::dispatch($user_id, $post, $website_id);
-            }
+        $webistePosts = Post::where('website_id', $website_id)
+                        ->whereNotExists(function($query) use($user_id){
+                            $query->select(DB::raw(1))
+                                ->from('sent_posts')
+                                ->where('sent_posts.user_id', $user_id)
+                                ->whereRaw('sent_posts.post_id = posts.id');
+                        })
+                        ->get();
+
+        foreach ($webistePosts as $post) {
+            SendPostEmailJob::dispatch($website_id, $user_id, $post);
         }
+
     }
 
-    private function checkSentBefore($user_id,$post_id)
-    {
-        $isExists = DB::table('sent_posts')->where('user_id',$user_id)->where('post_id',$post_id)->exists();
-        return $isExists;
-    }
+    // private function checkSentBefore($website_id, $user_id, $post_id)
+    // {
+    //     $isExists = DB::table('sent_posts')
+    //                 ->where('user_id', $user_id)
+    //                 ->where('post_id', $post_id)
+    //                 ->where('website_id', $website_id)
+    //                 ->exists();
+    //     return $isExists;
+    // }
 }
